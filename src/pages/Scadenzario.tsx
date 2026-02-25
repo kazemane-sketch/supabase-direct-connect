@@ -4,6 +4,10 @@ import { useCompany } from "@/hooks/useCompany";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { InvoiceLineEditor } from "@/components/invoices/InvoiceLineEditor";
+import { InvoiceDocument } from "@/components/invoices/InvoiceDocument";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -30,6 +34,7 @@ export default function Scadenzario() {
   const [periodFilter, setPeriodFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [groupBy, setGroupBy] = useState<"none" | "week" | "month">("none");
+  const [detailInvoice, setDetailInvoice] = useState<any>(null);
 
   const { data: invoices } = useQuery({
     queryKey: ["invoices_scadenzario", companyId],
@@ -221,18 +226,20 @@ export default function Scadenzario() {
                   {items.map((inv: any) => {
                     const cpName = inv.counterparties?.name || inv.counterpart_name || "—";
                     return (
-                      <TableRow key={inv.id} className={getRowClass(inv)}>
+                      <TableRow key={inv.id} className={cn(getRowClass(inv), "cursor-pointer")} onClick={() => setDetailInvoice(inv)}>
                         <TableCell className="font-medium">{formatDate(inv.due_date)}</TableCell>
                         <TableCell>{cpName}</TableCell>
                         <TableCell>{inv.invoice_number || "—"}</TableCell>
-                        <TableCell className="text-right font-semibold">{formatCurrency(Number(inv.total_amount) - Number(inv.paid_amount))}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="font-semibold">{formatCurrency(Number(inv.total_amount) - Number(inv.paid_amount))}</div>
+                          <div className="text-xs text-muted-foreground">{formatCurrency(Number(inv.total_amount) - Number(inv.paid_amount) - Number(inv.vat_amount || 0))} excl.</div>
+                        </TableCell>
                         <TableCell className="text-muted-foreground">{inv.payment_method || "—"}</TableCell>
                         <TableCell>{getDueBadge(inv)}</TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            {inv.payment_status !== "paid" && (<Button variant="ghost" size="icon" className="h-7 w-7" title="Segna come pagato" onClick={() => markPaidMutation.mutate(inv.id)}><Check className="h-3.5 w-3.5 text-success" /></Button>)}
-                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Vai alla fattura" onClick={() => navigate("/fatture")}><FileText className="h-3.5 w-3.5" /></Button>
-                            {inv.counterparties?.id && (<Button variant="ghost" size="icon" className="h-7 w-7" title="Vai alla controparte" onClick={() => navigate("/controparti")}><Users className="h-3.5 w-3.5" /></Button>)}
+                            {inv.payment_status !== "paid" && (<Button variant="ghost" size="icon" className="h-7 w-7" title="Segna come pagato" onClick={(e) => { e.stopPropagation(); markPaidMutation.mutate(inv.id); }}><Check className="h-3.5 w-3.5 text-success" /></Button>)}
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Apri fattura" onClick={(e) => { e.stopPropagation(); setDetailInvoice(inv); }}><Eye className="h-3.5 w-3.5" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -245,6 +252,41 @@ export default function Scadenzario() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Invoice Detail Dialog */}
+      <Dialog open={!!detailInvoice} onOpenChange={(open) => { if (!open) setDetailInvoice(null); }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Fattura {detailInvoice?.invoice_number || "—"} — {detailInvoice?.counterpart_name}</DialogTitle>
+          </DialogHeader>
+          {detailInvoice && companyId && (
+            <Tabs defaultValue="dati">
+              <TabsList>
+                <TabsTrigger value="dati">Dati</TabsTrigger>
+                <TabsTrigger value="documento">Documento</TabsTrigger>
+              </TabsList>
+              <TabsContent value="dati" className="space-y-4 mt-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                  <div><span className="text-muted-foreground">Numero</span><p className="font-medium">{detailInvoice.invoice_number || "—"}</p></div>
+                  <div><span className="text-muted-foreground">Data</span><p className="font-medium">{formatDate(detailInvoice.invoice_date)}</p></div>
+                  <div><span className="text-muted-foreground">Scadenza</span><p className="font-medium">{detailInvoice.due_date ? formatDate(detailInvoice.due_date) : "—"}</p></div>
+                  <div><span className="text-muted-foreground">Totale</span><p className="font-semibold">{formatCurrency(Number(detailInvoice.total_amount))}</p></div>
+                  <div><span className="text-muted-foreground">Imponibile</span><p className="font-medium">{formatCurrency(Number(detailInvoice.subtotal || 0))}</p></div>
+                  <div><span className="text-muted-foreground">IVA</span><p className="font-medium">{formatCurrency(Number(detailInvoice.vat_amount || 0))}</p></div>
+                </div>
+                <InvoiceLineEditor invoiceId={detailInvoice.id} companyId={companyId} invoiceDirection={detailInvoice.direction} />
+              </TabsContent>
+              <TabsContent value="documento" className="mt-4">
+                {detailInvoice.raw_xml ? (
+                  <InvoiceDocument invoice={detailInvoice} />
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">Nessun documento disponibile.</p>
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
