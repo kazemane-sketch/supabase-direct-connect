@@ -16,6 +16,7 @@ import Riconciliazione from "./pages/Riconciliazione";
 import Cashflow from "./pages/Cashflow";
 import Analisi from "./pages/Analisi";
 import Impostazioni from "./pages/Impostazioni";
+import Quarantena from "./pages/Quarantena";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +34,7 @@ function ProtectedRoutes() {
           <Route path="/riconciliazione" element={<Riconciliazione />} />
           <Route path="/cashflow" element={<Cashflow />} />
           <Route path="/analisi" element={<Analisi />} />
+          <Route path="/quarantena" element={<Quarantena />} />
           <Route path="/impostazioni" element={<Impostazioni />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
