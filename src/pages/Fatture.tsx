@@ -398,7 +398,6 @@ function InvoiceTable({ invoices, companyId }: { invoices: any[]; companyId: str
             <TableHead>Scadenza</TableHead>
             <TableHead>Controparte</TableHead>
             <TableHead className="text-right">Importo</TableHead>
-            <TableHead className="text-right">IVA</TableHead>
             <TableHead>Pagamento</TableHead>
             <TableHead>Metodo</TableHead>
             <TableHead>Riconciliata</TableHead>
@@ -437,8 +436,10 @@ function InvoiceTable({ invoices, companyId }: { invoices: any[]; companyId: str
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="text-right font-semibold">{formatCurrency(Number(inv.total_amount))}</TableCell>
-                <TableCell className="text-right text-muted-foreground">{formatCurrency(Number(inv.vat_amount || 0))}</TableCell>
+                <TableCell className="text-right">
+                  <div className="font-semibold">{formatCurrency(Number(inv.total_amount))}</div>
+                  <div className="text-xs text-muted-foreground">{formatCurrency(Number(inv.subtotal || (inv.total_amount - (inv.vat_amount || 0))))} excl.</div>
+                </TableCell>
                 <TableCell><StatusBadge status={inv.payment_status} /></TableCell>
                 <TableCell>{getPaymentMethodBadge(pm)}</TableCell>
                 <TableCell>
@@ -460,7 +461,7 @@ function InvoiceTable({ invoices, companyId }: { invoices: any[]; companyId: str
             );
           })}
           {invoices.length === 0 && (
-            <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-8">Nessuna fattura trovata</TableCell></TableRow>
+            <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Nessuna fattura trovata</TableCell></TableRow>
           )}
         </TableBody>
       </Table>
