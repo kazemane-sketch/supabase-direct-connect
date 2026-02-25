@@ -9,6 +9,7 @@ import {
   type ParsedInvoice,
 } from "@/lib/xmlInvoiceParser";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -102,6 +103,38 @@ export default function Quarantena() {
   const companyId = selectedCompany?.id;
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState<Record<string, string>>({});
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (!quarantined) return;
+    if (selected.size === quarantined.length) setSelected(new Set());
+    else setSelected(new Set(quarantined.map((i: any) => i.id)));
+  };
+
+  const bulkDelete = async () => {
+    const ids = Array.from(selected);
+    const items = quarantined?.filter((i: any) => ids.includes(i.id)) || [];
+    try {
+      // Delete from storage
+      const paths = items.map((i: any) => i.storage_path);
+      if (paths.length > 0) await supabase.storage.from("invoice-imports").remove(paths);
+      // Delete records
+      await supabase.from("invoice_import_files").delete().in("id", ids);
+      setSelected(new Set());
+      queryClient.invalidateQueries({ queryKey: ["quarantined_files"] });
+      toast.success(`${ids.length} file eliminati`);
+    } catch (e: any) {
+      toast.error(`Errore: ${e.message}`);
+    }
+  };
 
   const { data: quarantined } = useQuery({
     queryKey: ["quarantined_files", companyId],
@@ -291,9 +324,20 @@ export default function Quarantena() {
       ) : (
         <Card className="shadow-sm">
           <CardContent className="p-0">
+            {selected.size > 0 && (
+              <div className="flex items-center gap-2 p-2 bg-muted/50 border-b">
+                <span className="text-sm font-medium">{selected.size} selezionati</span>
+                <Button variant="destructive" size="sm" className="gap-1" onClick={bulkDelete}>
+                  <Trash2 className="h-3.5 w-3.5" /> Elimina selezionati
+                </Button>
+              </div>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox checked={quarantined.length > 0 && selected.size === quarantined.length} onCheckedChange={toggleAll} />
+                  </TableHead>
                   <TableHead>File</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead>Errore</TableHead>
@@ -306,6 +350,9 @@ export default function Quarantena() {
                   const itemLoading = loading[item.id];
                   return (
                     <TableRow key={item.id}>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox checked={selected.has(item.id)} onCheckedChange={() => toggleSelect(item.id)} />
+                      </TableCell>
                       <TableCell className="font-medium max-w-[200px] truncate">{item.filename}</TableCell>
                       <TableCell className="text-sm">{formatDate(item.created_at)}</TableCell>
                       <TableCell>
