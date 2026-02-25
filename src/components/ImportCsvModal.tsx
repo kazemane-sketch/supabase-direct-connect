@@ -280,33 +280,46 @@ export function ImportCsvModal({ open, onOpenChange, companyId, accounts }: Impo
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let finalData: any = null;
+      let lastProgress: any = null;
+      let allStreamedTransactions: any[] = [];
 
       if (reader) {
         let buffer = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          
-          const lines = buffer.split("\n\n");
-          buffer = lines.pop() || "";
-          
-          for (const line of lines) {
-            const dataLine = line.replace(/^data: /, "").trim();
-            if (!dataLine) continue;
-            try {
-              const event = JSON.parse(dataLine);
-              if (event.type === "progress") {
-                toast.info(`Elaborazione chunk ${event.chunk}/${event.total} — Trovati ${event.found} movimenti finora...`, { id: "pdf-progress" });
-              } else if (event.type === "done") {
-                finalData = event;
-              }
-            } catch { /* skip malformed */ }
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            
+            const lines = buffer.split("\n\n");
+            buffer = lines.pop() || "";
+            
+            for (const line of lines) {
+              const dataLine = line.replace(/^data: /, "").trim();
+              if (!dataLine) continue;
+              try {
+                const event = JSON.parse(dataLine);
+                if (event.type === "progress") {
+                  lastProgress = event;
+                  toast.info(`Elaborazione chunk ${event.chunk}/${event.total} — Trovati ${event.found} movimenti finora...`, { id: "pdf-progress" });
+                } else if (event.type === "done") {
+                  finalData = event;
+                  allStreamedTransactions = event.transactions || [];
+                }
+              } catch { /* skip malformed */ }
+            }
+          }
+        } catch (streamErr: any) {
+          console.error("SSE stream interrupted:", streamErr?.message);
+          // If we got a done event before the error, use it
+          if (!finalData && allStreamedTransactions.length > 0) {
+            toast.warning("Connessione interrotta ma alcuni dati sono stati recuperati");
+            finalData = { transactions: allStreamedTransactions, count: allStreamedTransactions.length };
           }
         }
       }
 
-      if (!finalData) throw new Error("Nessuna risposta dal server");
+      if (!finalData) throw new Error("Nessuna risposta dal server. Il file potrebbe essere troppo grande — prova a dividerlo in parti più piccole (max ~15 pagine).");
       if (finalData.failedChunks) {
         toast.warning(`${finalData.failedChunks.length} chunk non elaborati, risultati parziali`);
       }
