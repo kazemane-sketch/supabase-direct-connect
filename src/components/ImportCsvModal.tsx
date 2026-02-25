@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { PDFDocument } from "pdf-lib";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -133,6 +134,8 @@ export function ImportCsvModal({ open, onOpenChange, companyId, accounts }: Impo
   const [pdfTransactions, setPdfTransactions] = useState<PdfTransaction[]>([]);
   const [pdfResult, setPdfResult] = useState<{ imported: number; duplicated: number } | null>(null);
   const [isParsing, setIsParsing] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState<{ chunk: number; total: number; found: number }>({ chunk: 0, total: 0, found: 0 });
+  const [pdfFailedChunks, setPdfFailedChunks] = useState<number[]>([]);
   const pdfInputRef = useRef<HTMLInputElement>(null);
 
   const queryClient = useQueryClient();
@@ -142,6 +145,7 @@ export function ImportCsvModal({ open, onOpenChange, companyId, accounts }: Impo
     setCsvHeaders([]); setCsvRows([]); setMapping({} as any); setImportResult(null);
     setPdfStep("upload"); setPdfAccountId(""); setPdfFileName("");
     setPdfTransactions([]); setPdfResult(null); setIsParsing(false);
+    setPdfProgress({ chunk: 0, total: 0, found: 0 }); setPdfFailedChunks([]);
   };
 
   const handleClose = (val: boolean) => { if (!val) reset(); onOpenChange(val); };
@@ -238,6 +242,8 @@ export function ImportCsvModal({ open, onOpenChange, companyId, accounts }: Impo
 
   // ── PDF handlers ──
 
+  const CHUNK_SIZE = 10;
+
   const handlePdfFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -246,128 +252,154 @@ export function ImportCsvModal({ open, onOpenChange, companyId, accounts }: Impo
     setPdfFileName(file.name);
     setIsParsing(true);
     setPdfStep("parsing");
+    setPdfProgress({ chunk: 0, total: 0, found: 0 });
+    setPdfFailedChunks([]);
 
     try {
       const buffer = await file.arrayBuffer();
-      const base64 = btoa(
-        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-      );
 
-      // Use fetch directly to handle large payloads with proper timeout
+      // Split PDF in chunks nel frontend
+      const pdfDoc = await PDFDocument.load(buffer);
+      const totalPages = pdfDoc.getPageCount();
+      const totalChunks = Math.ceil(totalPages / CHUNK_SIZE);
+
+      setPdfProgress({ chunk: 0, total: totalChunks, found: 0 });
+
+      const chunks: string[] = [];
+      if (totalPages <= CHUNK_SIZE) {
+        const bytes = new Uint8Array(buffer);
+        chunks.push(btoa(bytes.reduce((data, byte) => data + String.fromCharCode(byte), "")));
+      } else {
+        for (let i = 0; i < totalPages; i += CHUNK_SIZE) {
+          const chunkDoc = await PDFDocument.create();
+          const endPage = Math.min(i + CHUNK_SIZE, totalPages);
+          const pageIndices = Array.from({ length: endPage - i }, (_, k) => i + k);
+          const pages = await chunkDoc.copyPages(pdfDoc, pageIndices);
+          pages.forEach(page => chunkDoc.addPage(page));
+          const chunkBytes = await chunkDoc.save();
+          const chunkUint8 = new Uint8Array(chunkBytes);
+          chunks.push(btoa(chunkUint8.reduce((data, byte) => data + String.fromCharCode(byte), "")));
+        }
+      }
+
+      console.log(`PDF split: ${totalPages} pagine → ${chunks.length} chunk`);
+
+      // Invia ogni chunk separatamente alla Edge Function
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 600000); // 10 min timeout for large PDFs
+      let allTransactions: PdfTransaction[] = [];
+      const failedChunks: number[] = [];
 
-      const response = await fetch(`${supabaseUrl}/functions/v1/parse-bank-pdf`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${supabaseKey}`,
-          "apikey": supabaseKey,
-        },
-        body: JSON.stringify({ pdfBase64: base64, mimeType: file.type || "application/pdf" }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
+      for (let i = 0; i < chunks.length; i++) {
+        setPdfProgress({ chunk: i + 1, total: chunks.length, found: allTransactions.length });
 
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        throw new Error(errBody.error || `Errore server: ${response.status}`);
-      }
+        let attempts = 0;
+        const maxAttempts = 3;
+        let success = false;
 
-      // Handle SSE streaming response
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let finalData: any = null;
-      let lastProgress: any = null;
-      let allStreamedTransactions: any[] = [];
+        while (attempts < maxAttempts && !success) {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 120000);
 
-      if (reader) {
-        let buffer = "";
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            
-            const lines = buffer.split("\n\n");
-            buffer = lines.pop() || "";
-            
-            for (const line of lines) {
-              const dataLine = line.replace(/^data: /, "").trim();
-              if (!dataLine) continue;
-              try {
-                const event = JSON.parse(dataLine);
-                if (event.type === "progress") {
-                  lastProgress = event;
-                  toast.info(`Elaborazione chunk ${event.chunk}/${event.total} — Trovati ${event.found} movimenti finora...`, { id: "pdf-progress" });
-                } else if (event.type === "done") {
-                  finalData = event;
-                  allStreamedTransactions = event.transactions || [];
-                }
-              } catch { /* skip malformed */ }
+            const response = await fetch(`${supabaseUrl}/functions/v1/parse-bank-pdf`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${supabaseKey}`,
+                "apikey": supabaseKey,
+              },
+              body: JSON.stringify({ pdfBase64: chunks[i] }),
+              signal: controller.signal,
+            });
+            clearTimeout(timeout);
+
+            if (response.status === 429) {
+              const data = await response.json().catch(() => ({}));
+              const waitSec = Math.min(60, data.retryAfter || 30);
+              attempts++;
+              if (attempts < maxAttempts) {
+                toast.info(`Rate limit raggiunto, riprovo tra ${waitSec}s...`, { id: "pdf-rate-limit" });
+                await new Promise(r => setTimeout(r, waitSec * 1000));
+                continue;
+              }
+            }
+
+            if (!response.ok) {
+              const errBody = await response.json().catch(() => ({}));
+              throw new Error(errBody.error || `Errore server: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const chunkTxns: PdfTransaction[] = [];
+
+            for (const t of (data.transactions || [])) {
+              const mainTx: PdfTransaction = {
+                date: t.date || "",
+                value_date: t.value_date || null,
+                amount: typeof t.amount === "number" ? t.amount : 0,
+                commission: typeof t.commission === "number" ? t.commission : null,
+                description: t.description || "",
+                counterpart: t.counterpart || null,
+                reference: t.reference || null,
+                cbi_flow_id: t.cbi_flow_id || null,
+                branch: t.branch || null,
+                raw_text: t.raw_text || null,
+                _hasWarning: !t.date || typeof t.amount !== "number" || t.amount === 0,
+              };
+              chunkTxns.push(mainTx);
+
+              if (typeof t.commission === "number" && t.commission > 0) {
+                chunkTxns.push({
+                  date: t.date || "",
+                  value_date: t.value_date || null,
+                  amount: -Math.abs(t.commission),
+                  commission: null,
+                  description: `COMMISSIONI BANCARIE - ${t.reference || t.description || ""}`,
+                  counterpart: "Banca Monte dei Paschi di Siena",
+                  reference: t.reference || null,
+                  cbi_flow_id: t.cbi_flow_id || null,
+                  branch: t.branch || null,
+                  raw_text: t.raw_text || null,
+                  _hasWarning: false,
+                  _isCommission: true,
+                });
+              }
+            }
+
+            allTransactions = [...allTransactions, ...chunkTxns];
+            console.log(`Chunk ${i + 1}/${chunks.length}: ${chunkTxns.length} movimenti (totale: ${allTransactions.length})`);
+            success = true;
+
+          } catch (err: any) {
+            attempts++;
+            console.error(`Chunk ${i + 1} tentativo ${attempts} fallito:`, err.message);
+            if (attempts >= maxAttempts) {
+              failedChunks.push(i + 1);
+            } else {
+              await new Promise(r => setTimeout(r, 5000));
             }
           }
-        } catch (streamErr: any) {
-          console.error("SSE stream interrupted:", streamErr?.message);
-          // If we got a done event before the error, use it
-          if (!finalData && allStreamedTransactions.length > 0) {
-            toast.warning("Connessione interrotta ma alcuni dati sono stati recuperati");
-            finalData = { transactions: allStreamedTransactions, count: allStreamedTransactions.length };
-          }
+        }
+
+        if (i < chunks.length - 1 && success) {
+          await new Promise(r => setTimeout(r, 2000));
         }
       }
 
-      if (!finalData) throw new Error("Nessuna risposta dal server. Il file potrebbe essere troppo grande — prova a dividerlo in parti più piccole (max ~15 pagine).");
-      if (finalData.failedChunks) {
-        toast.warning(`${finalData.failedChunks.length} chunk non elaborati, risultati parziali`);
+      setPdfFailedChunks(failedChunks);
+
+      if (failedChunks.length > 0) {
+        toast.warning(`${failedChunks.length} chunk non elaborati (chunk ${failedChunks.join(", ")}). Risultati parziali: ${allTransactions.length} movimenti trovati.`);
       }
 
-      const rawTxs: PdfTransaction[] = [];
-      for (const t of (finalData.transactions || [])) {
-        const mainTx: PdfTransaction = {
-          date: t.date || "",
-          value_date: t.value_date || null,
-          amount: typeof t.amount === "number" ? t.amount : 0,
-          commission: typeof t.commission === "number" ? t.commission : null,
-          description: t.description || "",
-          counterpart: t.counterpart || null,
-          reference: t.reference || null,
-          cbi_flow_id: t.cbi_flow_id || null,
-          branch: t.branch || null,
-          raw_text: t.raw_text || null,
-          _hasWarning: !t.date || typeof t.amount !== "number" || t.amount === 0,
-        };
-        rawTxs.push(mainTx);
-
-        // Split commission into separate transaction
-        if (typeof t.commission === "number" && t.commission > 0) {
-          rawTxs.push({
-            date: t.date || "",
-            value_date: t.value_date || null,
-            amount: -Math.abs(t.commission),
-            commission: null,
-            description: `COMMISSIONI BANCARIE - ${t.reference || t.description || ""}`,
-            counterpart: "Banca Monte dei Paschi di Siena",
-            reference: t.reference || null,
-            cbi_flow_id: t.cbi_flow_id || null,
-            branch: t.branch || null,
-            raw_text: t.raw_text || null,
-            _hasWarning: false,
-            _isCommission: true,
-          });
-        }
-      }
-      const txs = rawTxs;
-
-      if (txs.length === 0) {
+      if (allTransactions.length === 0) {
         toast.error("Nessun movimento trovato nel PDF");
         setPdfStep("upload");
       } else {
-        setPdfTransactions(txs);
+        setPdfTransactions(allTransactions);
         setPdfStep("preview");
-        toast.success(`Trovati ${txs.length} movimenti`);
+        toast.success(`Trovati ${allTransactions.length} movimenti in ${chunks.length} chunk`);
       }
     } catch (err: any) {
       console.error("PDF parse error:", err);
@@ -750,9 +782,26 @@ export function ImportCsvModal({ open, onOpenChange, companyId, accounts }: Impo
               <div className="flex flex-col items-center gap-4 py-12">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Analisi del PDF in corso con AI...</p>
-                <p className="text-xs text-muted-foreground">
-                  {pdfFileName} — Potrebbe richiedere qualche secondo
-                </p>
+                <p className="text-xs text-muted-foreground">{pdfFileName}</p>
+                {pdfProgress.total > 0 && (
+                  <div className="w-full max-w-xs space-y-2">
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div
+                        className="bg-primary h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${(pdfProgress.chunk / pdfProgress.total) * 100}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Chunk {pdfProgress.chunk}/{pdfProgress.total}</span>
+                      <span>{pdfProgress.found} movimenti trovati</span>
+                    </div>
+                  </div>
+                )}
+                {pdfProgress.total > 1 && (
+                  <p className="text-xs text-muted-foreground">
+                    PDF grande ({pdfProgress.total} parti) — ogni parte viene elaborata separatamente
+                  </p>
+                )}
               </div>
             )}
 
