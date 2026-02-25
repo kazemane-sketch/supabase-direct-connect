@@ -7,8 +7,12 @@ import { lookupVatNumber } from "@/lib/viesLookup";
  */
 function getDirectionFromParsed(inv: ParsedInvoice, companyVat: string | null): "active" | "passive" {
   if (!companyVat) return "passive";
-  if (inv.buyer.vatNumber && companyVat.includes(inv.buyer.vatNumber)) return "passive";
-  if (inv.supplier.vatNumber && companyVat.includes(inv.supplier.vatNumber)) return "active";
+  const norm = (v: string | null | undefined) => v ? v.replace(/^IT/i, "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase() : "";
+  const normCompany = norm(companyVat);
+  const normBuyer = norm(inv.buyer.vatNumber) || norm(inv.buyer.fiscalCode);
+  const normSupplier = norm(inv.supplier.vatNumber) || norm(inv.supplier.fiscalCode);
+  if (normBuyer && normBuyer === normCompany) return "passive";
+  if (normSupplier && normSupplier === normCompany) return "active";
   return "passive";
 }
 

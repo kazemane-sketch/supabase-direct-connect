@@ -288,8 +288,8 @@ export function ImportXmlModal({ open, onOpenChange }: ImportXmlModalProps) {
   const getDirection = (inv: ParsedInvoice): "active" | "passive" | "quarantine" => {
     const normCompany = normalizeVat(selectedCompany?.vat_number);
     if (!normCompany) return "passive";
-    const normBuyer = normalizeVat(inv.buyer.vatNumber);
-    const normSupplier = normalizeVat(inv.supplier.vatNumber);
+    const normBuyer = normalizeVat(inv.buyer.vatNumber) || normalizeVat(inv.buyer.fiscalCode);
+    const normSupplier = normalizeVat(inv.supplier.vatNumber) || normalizeVat(inv.supplier.fiscalCode);
     // Confronto esatto (no includes)
     if (normBuyer && normBuyer === normCompany) return "passive";
     if (normSupplier && normSupplier === normCompany) return "active";
