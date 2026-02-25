@@ -33,24 +33,24 @@ export function AppSidebar() {
     <aside className="w-60 min-h-screen bg-sidebar flex flex-col border-r border-sidebar-border shrink-0">
       <div className="px-5 py-6">
         <h1 className="text-xl font-bold text-sidebar-primary-foreground tracking-tight">
-          <span className="text-sidebar-primary">Fin</span>Flow
+          <span className="text-primary">Fin</span>Flow
         </h1>
-        <p className="text-xs text-sidebar-muted mt-0.5">Gestione finanziaria PMI</p>
+        <p className="text-xs text-sidebar-foreground/50 mt-0.5">Gestione finanziaria PMI</p>
       </div>
 
       <nav className="flex-1 px-3 space-y-0.5">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.url || 
+          const isActive = location.pathname === item.url ||
             (item.url !== "/" && location.pathname.startsWith(item.url));
           return (
             <NavLink
               key={item.url}
               to={item.url}
               end={item.url === "/"}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 ${
                 isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium shadow-sm border-l-2 border-white/60"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               }`}
               activeClassName=""
             >
@@ -62,7 +62,7 @@ export function AppSidebar() {
       </nav>
 
       <div className="px-5 py-4 border-t border-sidebar-border">
-        <p className="text-xs text-sidebar-muted">FinFlow v1.0</p>
+        <p className="text-xs text-sidebar-foreground/40">FinFlow v1.0</p>
       </div>
     </aside>
   );
