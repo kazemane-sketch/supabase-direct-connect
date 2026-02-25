@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Download, RotateCcw, Sparkles, Loader2, Archive } from "lucide-react";
+import { Download, RotateCcw, Sparkles, Loader2, Archive, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 
@@ -151,6 +151,20 @@ export default function Quarantena() {
       toast.error(`Errore: ${e.message}`);
     } finally {
       setLoading(p => { const n = { ...p }; delete n[id]; return n; });
+    }
+  };
+
+  const deleteFile = async (item: any) => {
+    setLoading(p => ({ ...p, [item.id]: "delete" }));
+    try {
+      await supabase.storage.from("invoice-imports").remove([item.storage_path]);
+      await supabase.from("invoice_import_files").delete().eq("id", item.id);
+      queryClient.invalidateQueries({ queryKey: ["quarantined_files"] });
+      toast.success("File eliminato");
+    } catch (e: any) {
+      toast.error(`Errore: ${e.message}`);
+    } finally {
+      setLoading(p => { const n = { ...p }; delete n[item.id]; return n; });
     }
   };
 
@@ -335,6 +349,14 @@ export default function Quarantena() {
                             onClick={() => archiveFile(item.id)}
                           >
                             {itemLoading === "archive" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
+                          </Button>
+                          <Button
+                            variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
+                            title="Elimina file"
+                            disabled={!!itemLoading}
+                            onClick={() => deleteFile(item)}
+                          >
+                            {itemLoading === "delete" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                           </Button>
                         </div>
                       </TableCell>
