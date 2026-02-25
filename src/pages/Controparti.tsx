@@ -9,12 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AlertTriangle, Check, Eye, UserPlus, RefreshCw, Trash2, CheckCheck, Globe } from "lucide-react";
+import { AlertTriangle, Check, Eye, UserPlus, RefreshCw, Trash2, CheckCheck, Globe, Building2, Landmark, Briefcase, User } from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { CounterpartyDetail } from "@/components/counterparties/CounterpartyDetail";
@@ -43,6 +44,19 @@ interface CounterpartyForm {
   notes: string;
 }
 
+const ENTITY_TYPES = [
+  { value: "azienda", label: "Azienda", icon: Building2 },
+  { value: "pa", label: "PA", icon: Landmark },
+  { value: "professionista", label: "Professionista", icon: Briefcase },
+  { value: "persona", label: "Persona", icon: User },
+] as const;
+
+function getEntityIcon(entityType: string | null) {
+  const found = ENTITY_TYPES.find(e => e.value === entityType);
+  if (!found) return Building2;
+  return found.icon;
+}
+
 const emptyForm: CounterpartyForm = {
   name: "", type: "fornitore", vat_number: "", fiscal_code: "",
   address: "", city: "", province: "", cap: "", country: "IT",
@@ -64,6 +78,8 @@ export default function Controparti() {
   const [bulkApproveCount, setBulkApproveCount] = useState(0);
   const [activeTab, setActiveTab] = useState("fornitori");
   const [viesProgress, setViesProgress] = useState<{ current: number; total: number } | null>(null);
+  const [newAnagraficaOpen, setNewAnagraficaOpen] = useState(false);
+  const [selectedEntityType, setSelectedEntityType] = useState<string>("azienda");
 
   const { data: counterparties } = useQuery({
     queryKey: ["counterparties", companyId],
@@ -98,6 +114,7 @@ export default function Controparti() {
         company_id: companyId,
         name: form.name.trim(),
         type: form.type,
+        entity_type: selectedEntityType,
         vat_number: form.vat_number.trim() || null,
         fiscal_code: form.fiscal_code.trim() || null,
         address: form.address.trim() || null,
@@ -371,10 +388,12 @@ export default function Controparti() {
     setForm(emptyForm);
   };
 
-  const openNew = (type: string) => {
+  const openNew = (type: string, entityType?: string) => {
     setEditId(null);
     setForm({ ...emptyForm, type });
+    if (entityType) setSelectedEntityType(entityType);
     setSheetOpen(true);
+    setNewAnagraficaOpen(false);
   };
 
   const openEdit = (cp: any) => {
@@ -390,6 +409,7 @@ export default function Controparti() {
       payment_method: cp.payment_method || "", iban: cp.iban || "",
       notes: cp.notes || "",
     });
+    setSelectedEntityType(cp.entity_type || "azienda");
     setSheetOpen(true);
   };
 
@@ -442,8 +462,8 @@ export default function Controparti() {
           <Button variant="outline" className="gap-2" onClick={handleBulkApproveAll}>
             <CheckCheck className="h-4 w-4" /> Approva tutti
           </Button>
-          <Button className="gap-2" onClick={() => openNew(activeTab === "fornitori" ? "fornitore" : "cliente")}>
-            <UserPlus className="h-4 w-4" /> Nuova controparte
+          <Button className="gap-2" onClick={() => setNewAnagraficaOpen(true)}>
+            <UserPlus className="h-4 w-4" /> Aggiungi anagrafica
           </Button>
         </div>
       </div>
@@ -623,6 +643,36 @@ export default function Controparti() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* New Anagrafica Dialog */}
+      <Dialog open={newAnagraficaOpen} onOpenChange={setNewAnagraficaOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nuova anagrafica</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-4 gap-4 py-6">
+            {ENTITY_TYPES.map((et) => {
+              const Icon = et.icon;
+              return (
+                <button
+                  key={et.value}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all hover:border-primary/50 hover:bg-accent ${
+                    selectedEntityType === et.value ? "border-primary bg-accent" : "border-border"
+                  }`}
+                  onClick={() => setSelectedEntityType(et.value)}
+                >
+                  <Icon className="h-7 w-7 text-foreground" />
+                  <span className="text-sm font-medium">{et.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex justify-center gap-3">
+            <Button variant="outline" onClick={() => setNewAnagraficaOpen(false)}>Annulla</Button>
+            <Button onClick={() => openNew(activeTab === "fornitori" ? "fornitore" : "cliente", selectedEntityType)}>Crea</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 
@@ -654,7 +704,17 @@ export default function Controparti() {
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={selected.has(cp.id)} onCheckedChange={() => toggleSelect(cp.id)} />
                     </TableCell>
-                    <TableCell className="font-medium">{cp.name || <span className="text-muted-foreground italic">Nome mancante</span>}</TableCell>
+                    <TableCell className="font-medium">
+                      {(() => {
+                        const EntityIcon = getEntityIcon(cp.entity_type);
+                        return (
+                          <div className="flex items-center gap-2">
+                            <EntityIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            {cp.name || <span className="text-muted-foreground italic">Nome mancante</span>}
+                          </div>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{cp.vat_number || "—"}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="capitalize">{cp.type}</Badge>

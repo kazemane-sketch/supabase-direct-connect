@@ -259,6 +259,7 @@ export type Database = {
           country: string | null
           created_at: string
           email: string | null
+          entity_type: string | null
           fiscal_code: string | null
           iban: string | null
           id: string
@@ -286,6 +287,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           email?: string | null
+          entity_type?: string | null
           fiscal_code?: string | null
           iban?: string | null
           id?: string
@@ -313,6 +315,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           email?: string | null
+          entity_type?: string | null
           fiscal_code?: string | null
           iban?: string | null
           id?: string
