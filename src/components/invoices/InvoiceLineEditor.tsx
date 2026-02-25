@@ -312,12 +312,17 @@ function InvoiceLineRow({
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {line.quantity} × {formatCurrency(Number(line.unit_price))} · IVA {line.vat_rate}%
+                    {line.quantity} × {formatCurrency(Number(line.unit_price))}
                     {line.quantity_tons && ` · ${Number(line.quantity_tons).toLocaleString("it-IT")} ${line.unit_of_measure || "ton"}`}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{formatCurrency(Number(line.total))}</span>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <span className="font-semibold">{formatCurrency(Number(line.total))}</span>
+                    <p className="text-[10px] text-muted-foreground">
+                      {formatCurrency(Number(line.total) - Number(line.total) * Number(line.vat_rate || 0) / (100 + Number(line.vat_rate || 0)))} + IVA {line.vat_rate}%
+                    </p>
+                  </div>
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
                     <Trash2 className="h-3 w-3" />
                   </Button>
