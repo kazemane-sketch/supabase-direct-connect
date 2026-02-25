@@ -835,17 +835,25 @@ export function ImportCsvModal({ open, onOpenChange, companyId, accounts }: Impo
                     </TableHeader>
                     <TableBody>
                       {pdfTransactions.map((tx, i) => (
-                        <TableRow key={i} className={tx._hasWarning ? "bg-warning/10" : ""}>
-                          <TableCell className="text-sm py-2 whitespace-nowrap">
-                            {tx.date || <span className="text-destructive">⚠ Mancante</span>}
+                        <TableRow key={i} className={
+                          tx._isCommission
+                            ? "bg-muted/20 border-t-0"
+                            : tx._hasWarning ? "bg-warning/10" : ""
+                        }>
+                          <TableCell className={`py-2 whitespace-nowrap ${tx._isCommission ? "text-xs text-muted-foreground" : "text-sm"}`}>
+                            {tx._isCommission ? "" : (tx.date || <span className="text-destructive">⚠ Mancante</span>)}
                           </TableCell>
-                          <TableCell className={`text-sm py-2 text-right font-semibold whitespace-nowrap ${
-                            tx.amount >= 0 ? "text-success" : "text-destructive"
-                          }`}>
+                          <TableCell className={`py-2 text-right font-semibold whitespace-nowrap ${
+                            tx._isCommission ? "text-xs" : "text-sm"
+                          } ${tx.amount >= 0 ? "text-success" : "text-destructive"}`}>
                             {formatCurrency(tx.amount)}
                           </TableCell>
-                          <TableCell className="text-sm py-2 max-w-[200px] truncate">{tx.description || "—"}</TableCell>
-                          <TableCell className="text-sm py-2">{tx.counterpart || "—"}</TableCell>
+                          <TableCell className={`py-2 max-w-[200px] truncate ${tx._isCommission ? "text-xs text-muted-foreground pl-6" : "text-sm"}`}>
+                            {tx._isCommission ? `↳ ${tx.description || "Commissione"}` : (tx.description || "—")}
+                          </TableCell>
+                          <TableCell className={`py-2 ${tx._isCommission ? "text-xs text-muted-foreground" : "text-sm"}`}>
+                            {tx._isCommission ? "" : (tx.counterpart || "—")}
+                          </TableCell>
                           <TableCell className="py-2">
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removePdfRow(i)}>
                               <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
