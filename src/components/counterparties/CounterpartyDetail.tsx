@@ -348,7 +348,10 @@ export function CounterpartyDetail({ counterpartyId, companyId, onBack }: Props)
                       <TableCell>{formatDate(inv.invoice_date)}</TableCell>
                       <TableCell>{inv.due_date ? formatDate(inv.due_date) : "—"}</TableCell>
                       <TableCell><Badge variant="outline">{inv.direction === "active" ? "Attiva" : "Passiva"}</Badge></TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(Number(inv.total_amount))}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="font-semibold">{formatCurrency(Number(inv.total_amount))}</div>
+                        <div className="text-xs text-muted-foreground">{formatCurrency(Number(inv.subtotal || (inv.total_amount - (inv.vat_amount || 0))))} excl.</div>
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{getPaymentLabel(extractPaymentMethod(inv.raw_xml))}</TableCell>
                       <TableCell><StatusBadge status={inv.payment_status} /></TableCell>
                     </TableRow>
@@ -379,7 +382,10 @@ export function CounterpartyDetail({ counterpartyId, companyId, onBack }: Props)
                     <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedInvoice(inv)}>
                       <TableCell className={getDueDateColor(inv.due_date!, inv.payment_status)}>{formatDate(inv.due_date!)}</TableCell>
                       <TableCell className="font-medium">{inv.invoice_number || "—"}</TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(Number(inv.total_amount))}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="font-semibold">{formatCurrency(Number(inv.total_amount))}</div>
+                        <div className="text-xs text-muted-foreground">{formatCurrency(Number(inv.subtotal || (inv.total_amount - (inv.vat_amount || 0))))} excl.</div>
+                      </TableCell>
                       <TableCell><StatusBadge status={inv.payment_status} /></TableCell>
                     </TableRow>
                   ))}
