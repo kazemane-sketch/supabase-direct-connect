@@ -90,8 +90,8 @@ async function extractXmlFromBlob(blob: Blob, filename: string): Promise<string 
 function getDirection(inv: ParsedInvoice, companyVat: string | null | undefined): "active" | "passive" | "quarantine" {
   const normCompany = normalizeVat(companyVat);
   if (!normCompany) return "passive";
-  const normBuyer = normalizeVat(inv.buyer.vatNumber);
-  const normSupplier = normalizeVat(inv.supplier.vatNumber);
+  const normBuyer = normalizeVat(inv.buyer.vatNumber) || normalizeVat(inv.buyer.fiscalCode);
+  const normSupplier = normalizeVat(inv.supplier.vatNumber) || normalizeVat(inv.supplier.fiscalCode);
   if (normBuyer && normBuyer === normCompany) return "passive";
   if (normSupplier && normSupplier === normCompany) return "active";
   return "quarantine";
