@@ -70,40 +70,41 @@ export default function Index() {
   }
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Dashboard</h2>
+    <div className="space-y-8">
+      <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
         <KpiCard title="Saldo totale conti" value={formatCurrency(totalBalance)} icon={Wallet} variant="default" />
         <KpiCard title="Crediti aperti" value={formatCurrency(activeUnpaid)} icon={FileText} variant="success" />
         <KpiCard title="Debiti aperti" value={formatCurrency(passiveUnpaid)} icon={FileMinus} variant="warning" />
         <KpiCard title="Da riconciliare" value={String(unmatchedCount)} icon={AlertCircle} variant="destructive" />
       </div>
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Cashflow — Ultimi 12 mesi</CardTitle>
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-semibold">Cashflow — Ultimi 12 mesi</CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={cashflowData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={cashflowData} barGap={3}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,16%,90%)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "hsl(220,10%,50%)" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: "hsl(220,10%,50%)" }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} />
               <Tooltip
                 formatter={(value: number) => formatCurrency(value)}
-                contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", background: "#fff" }}
+                contentStyle={{ borderRadius: 16, border: "none", boxShadow: "0 8px 30px rgba(0,0,0,0.1)", background: "#fff", padding: "12px 16px" }}
+                cursor={{ fill: "hsl(165,60%,95%)", radius: 8 }}
               />
-              <Legend />
-              <Bar dataKey="entrate" fill="#10B981" fillOpacity={0.85} name="Entrate" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="uscite" fill="#F43F5E" fillOpacity={0.85} name="Uscite" radius={[6, 6, 0, 0]} />
+              <Legend wrapperStyle={{ paddingTop: 16 }} />
+              <Bar dataKey="entrate" fill="hsl(165,82%,41%)" fillOpacity={0.9} name="Entrate" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="uscite" fill="hsl(350,80%,55%)" fillOpacity={0.9} name="Uscite" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="shadow-sm">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <Card className="border-0 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">Fatture in scadenza — prossimi 7 giorni</CardTitle>
             <Link to="/scadenzario" className="text-xs text-primary hover:underline">Vedi tutto →</Link>
@@ -135,7 +136,7 @@ export default function Index() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm">
+        <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Movimenti non riconciliati</CardTitle>
           </CardHeader>

@@ -35,7 +35,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <AppSidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar />
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-8 overflow-auto">
           {isLoading ? (
             <div className="flex items-center justify-center h-64 text-muted-foreground">Caricamento...</div>
           ) : noCompanies ? (
