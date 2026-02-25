@@ -1,5 +1,3 @@
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,26 +7,8 @@ import { LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export function TopBar() {
-  const { selectedCompany, setSelectedCompany, companies, setCompanies } = useCompany();
+  const { selectedCompany, setSelectedCompany, companies } = useCompany();
   const navigate = useNavigate();
-
-  const { data: companiesData } = useQuery({
-    queryKey: ["companies"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("companies").select("*").order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  useEffect(() => {
-    if (companiesData && companiesData.length > 0) {
-      setCompanies(companiesData);
-      if (!selectedCompany) {
-        setSelectedCompany(companiesData[0]);
-      }
-    }
-  }, [companiesData]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
