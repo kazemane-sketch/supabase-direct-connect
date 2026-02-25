@@ -1,41 +1,24 @@
 
+## Piano: Collegamento visivo commissione → transazione principale
 
-## Supabase Health Check — Piano
+### Approccio
 
-Ho analizzato l'intero codice sorgente del progetto e confrontato con lo schema attuale del tuo Supabase. Ecco il risultato.
+Nella tabella di preview PDF, le righe commissione (`_isCommission === true`) verranno rese visivamente come "figlie" della transazione precedente:
 
-### Stato attuale
+1. **Indentazione e stile differenziato** — la riga commissione avrà:
+   - Un piccolo indicatore `↳` prima della descrizione per suggerire che è derivata dalla riga sopra
+   - Sfondo leggermente diverso (`bg-muted/30`) e testo più piccolo
+   - Nessun bordo superiore, così visivamente si "attacca" alla riga sopra
 
-**Tabelle** — Tutte le 12 tabelle richieste esistono gia nel tuo Supabase:
-`companies`, `bank_accounts`, `bank_transactions`, `import_batches`, `invoices`, `invoice_lines`, `invoice_line_projects`, `invoice_import_files`, `counterparties`, `chart_of_accounts`, `products`, `projects`, `reconciliations`, `reconciliation_rules`
-
-**Storage buckets** — Tutti e 3 esistono:
-`invoice-imports`, `invoices-xml`, `invoices-pdf`
-
-**Storage RLS policies** — Quasi complete, ma manca 1 policy:
-- `invoice-imports`: ha SELECT, INSERT, DELETE ma **manca UPDATE** (necessario perche l'app usa `upsert: true` negli upload)
-
-### Cosa produrro nella fase di implementazione
-
-**Blocco A — HEALTHCHECK SQL**: un singolo script da incollare nel SQL Editor che verifica ogni tabella, ogni colonna critica, ogni bucket e ogni policy di storage, con output `OK` / `MISSING` su ogni riga.
-
-**Blocco B — PATCH SQL**: una singola query che aggiunge la policy UPDATE mancante su `invoice-imports` (l'unico fix trovato). Usa `IF NOT EXISTS` / `CREATE POLICY ... IF NOT EXISTS` per non rompere nulla.
+2. **Nessuna modifica ai dati** — solo styling nella tabella preview (righe 836-855). La logica di import resta invariata.
 
 ### Dettaglio tecnico
 
-Le verifiche nel healthcheck copriranno:
-- 14 tabelle (esistenza)
-- ~25 colonne critiche (es: `invoices.raw_xml`, `invoices.pdf_storage_path`, `invoices.counterpart_id`, `counterparties.payment_method`, `invoice_import_files.had_replacement_chars`, etc.)
-- 3 bucket storage
-- 10 policy storage attese (SELECT/INSERT/UPDATE/DELETE per ogni bucket dove servono)
-- Output formattato come tabella: `check_name | status`
+Nel file `src/components/ImportCsvModal.tsx`, nella sezione `pdfStep === "preview"` (riga 837-854), modificare il rendering della `TableRow` per le commissioni:
 
-La patch SQL conterr solo:
-```sql
-CREATE POLICY "Anyone can update invoice-imports"
-  ON storage.objects FOR UPDATE
-  USING (bucket_id = 'invoice-imports');
-```
+- Se `tx._isCommission` è true, applicare classi CSS diverse: sfondo `bg-muted/20`, testo più piccolo, e prefisso `↳` nella colonna descrizione
+- Rimuovere il bordo superiore della riga commissione con `border-t-0` per legarla visivamente alla riga sopra
 
-Nessuna migration Lovable Cloud, nessuna modifica strutturale — solo script da copiare manualmente nel tuo SQL Editor.
+### File da modificare
 
+- `src/components/ImportCsvModal.tsx` — solo il blocco di rendering della tabella preview PDF (righe 837-854)
