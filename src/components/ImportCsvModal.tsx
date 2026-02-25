@@ -334,10 +334,14 @@ export function ImportCsvModal({ open, onOpenChange, companyId, accounts }: Impo
             const chunkTxns: PdfTransaction[] = [];
 
             for (const t of (data.transactions || [])) {
+              // Scorporo commissione dall'importo principale
+              const rawAmount = typeof t.amount === "number" ? t.amount : 0;
+              const commissionVal = typeof t.commission === "number" && t.commission > 0 ? t.commission : 0;
+              const netAmount = rawAmount < 0 ? rawAmount + commissionVal : rawAmount;
               const mainTx: PdfTransaction = {
                 date: t.date || "",
                 value_date: t.value_date || null,
-                amount: typeof t.amount === "number" ? t.amount : 0,
+                amount: netAmount,
                 commission: typeof t.commission === "number" ? t.commission : null,
                 description: t.description || "",
                 counterpart: t.counterpart || null,
