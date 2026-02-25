@@ -53,10 +53,41 @@ export default function Movimenti() {
         .from("bank_transactions")
         .select("*, bank_accounts(bank_name, account_name)")
         .eq("company_id", companyId!)
-        .order("transaction_date", { ascending: false })
-        .order("description", { ascending: true });
+        .order("transaction_date", { ascending: false });
       if (error) throw error;
-      return data;
+
+      // Riordina: posiziona le commissioni subito dopo la transazione madre
+      const commissions: any[] = [];
+      const normals: any[] = [];
+      for (const tx of data || []) {
+        if (tx.description?.startsWith("COMMISSIONI BANCARIE")) {
+          commissions.push(tx);
+        } else {
+          normals.push(tx);
+        }
+      }
+      const result: any[] = [];
+      const usedCommissions = new Set<string>();
+      for (const tx of normals) {
+        result.push(tx);
+        // Trova commissioni corrispondenti (stessa data + stesso reference)
+        for (const c of commissions) {
+          if (usedCommissions.has(c.id)) continue;
+          if (
+            c.transaction_date === tx.transaction_date &&
+            c.reference && tx.reference &&
+            c.reference === tx.reference
+          ) {
+            result.push(c);
+            usedCommissions.add(c.id);
+          }
+        }
+      }
+      // Aggiungi eventuali commissioni orfane alla fine
+      for (const c of commissions) {
+        if (!usedCommissions.has(c.id)) result.push(c);
+      }
+      return result;
     },
     enabled: !!companyId,
   });
