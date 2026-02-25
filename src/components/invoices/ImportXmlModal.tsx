@@ -7,6 +7,7 @@ import {
   parseInvoiceFromFile,
   previewInvoicesFromZip,
   sanitizeXml,
+  sanitizeEncoding,
   stripBadUnicode,
   type ParsedInvoice,
 } from "@/lib/xmlInvoiceParser";
@@ -456,7 +457,7 @@ export function ImportXmlModal({ open, onOpenChange }: ImportXmlModalProps) {
             counterpart_name: stripBadUnicode(cpName || cpVat || "Sconosciuto"),
             counterpart_vat: cpVat || null, counterpart_id: counterpartId,
             payment_status: "unpaid", reconciliation_status: "unmatched",
-            source: "xml_sdi", raw_xml: item.rawXml || null,
+            source: "xml_sdi", raw_xml: item.rawXml ? sanitizeEncoding(item.rawXml) : null,
             payment_method: inv.primaryPayment?.method || null,
             original_filename: item.filename,
           }).select("id").single();
@@ -558,7 +559,7 @@ export function ImportXmlModal({ open, onOpenChange }: ImportXmlModalProps) {
         counterpart_name: stripBadUnicode(cpName || cpVat || "Sconosciuto"),
         counterpart_vat: cpVat || null,
         payment_status: "unpaid", reconciliation_status: "unmatched",
-        source: "xml_sdi", raw_xml: q.rawXml || null,
+        source: "xml_sdi", raw_xml: q.rawXml ? sanitizeEncoding(q.rawXml) : null,
         payment_method: inv.primaryPayment?.method || null,
         original_filename: q.filename,
       }).select("id").single();

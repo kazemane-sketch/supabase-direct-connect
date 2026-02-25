@@ -222,6 +222,27 @@ function normalizeXmlNamespaces(xmlString: string): string {
   return s;
 }
 
+// ─── SANITIZZAZIONE ENCODING ──────────────────────────────────────────────────
+
+/**
+ * Converte byte ISO-8859-1 comuni in UTF-8 e rimuove control chars.
+ * Da chiamare PRIMA del parsing XML e PRIMA dell'inserimento in DB.
+ */
+export function sanitizeEncoding(raw: string): string {
+  return raw
+    .replace(/\xB0/g, '°')
+    .replace(/\xE0/g, 'à')
+    .replace(/\xE8/g, 'è')
+    .replace(/\xE9/g, 'é')
+    .replace(/\xF2/g, 'ò')
+    .replace(/\xF9/g, 'ù')
+    .replace(/\x92/g, "'")
+    .replace(/\x93/g, '"')
+    .replace(/\x94/g, '"')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .replace(/\uFFFD/g, '');
+}
+
 // ─── SANITIZZAZIONE ───────────────────────────────────────────────────────────
 
 /**
@@ -333,8 +354,9 @@ function parseAmount(s: string): number {
  */
 function parseXmlString(xmlString: string): ParsedInvoice | null {
   try {
-    // Sanitizza e normalizza namespace
-    const { xml: sanitized } = sanitizeXml(xmlString);
+    // Sanitizza encoding ISO-8859-1, poi rimuovi U+FFFD, poi normalizza namespace
+    const encoded = sanitizeEncoding(xmlString);
+    const { xml: sanitized } = sanitizeXml(encoded);
     const xml = normalizeXmlNamespaces(sanitized);
 
     // ── Header ──
