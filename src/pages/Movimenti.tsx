@@ -53,7 +53,8 @@ export default function Movimenti() {
         .from("bank_transactions")
         .select("*, bank_accounts(bank_name, account_name)")
         .eq("company_id", companyId!)
-        .order("transaction_date", { ascending: false });
+        .order("transaction_date", { ascending: false })
+        .order("description", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -373,25 +374,33 @@ function TransactionTable({ transactions, onRowClick, selectedIds, onToggleSelec
         </TableRow>
       </TableHeader>
       <TableBody>
-        {transactions.map((tx) => (
-          <TableRow key={tx.id} className="cursor-pointer group">
+        {transactions.map((tx) => {
+          const isCommission = tx.description?.startsWith("COMMISSIONI BANCARIE");
+          return (
+          <TableRow key={tx.id} className={`cursor-pointer group ${isCommission ? "bg-muted/20 border-t-0" : ""}`}>
             <TableCell onClick={(e) => e.stopPropagation()}>
               <Checkbox
                 checked={selectedIds.has(tx.id)}
                 onCheckedChange={() => onToggleSelect(tx.id)}
               />
             </TableCell>
-            <TableCell onClick={() => onRowClick(tx)}>{formatDate(tx.transaction_date)}</TableCell>
-            <TableCell onClick={() => onRowClick(tx)} className="text-sm text-muted-foreground">
-              {(tx.bank_accounts as any)?.bank_name}
+            <TableCell onClick={() => onRowClick(tx)} className={isCommission ? "text-xs text-muted-foreground" : ""}>
+              {isCommission ? "" : formatDate(tx.transaction_date)}
             </TableCell>
-            <TableCell onClick={() => onRowClick(tx)} className={`text-right font-semibold ${Number(tx.amount) >= 0 ? "text-success" : "text-destructive"}`}>
+            <TableCell onClick={() => onRowClick(tx)} className={`text-sm ${isCommission ? "text-xs text-muted-foreground" : "text-muted-foreground"}`}>
+              {isCommission ? "" : (tx.bank_accounts as any)?.bank_name}
+            </TableCell>
+            <TableCell onClick={() => onRowClick(tx)} className={`text-right font-semibold ${isCommission ? "text-xs" : ""} ${Number(tx.amount) >= 0 ? "text-success" : "text-destructive"}`}>
               {formatCurrency(Number(tx.amount))}
             </TableCell>
-            <TableCell onClick={() => onRowClick(tx)} className="max-w-[350px]">
-              <span className="line-clamp-2 text-sm">{tx.description}</span>
+            <TableCell onClick={() => onRowClick(tx)} className={`max-w-[350px] ${isCommission ? "pl-6" : ""}`}>
+              <span className={`line-clamp-2 ${isCommission ? "text-xs text-muted-foreground" : "text-sm"}`}>
+                {isCommission ? `↳ ${tx.description}` : tx.description}
+              </span>
             </TableCell>
-            <TableCell onClick={() => onRowClick(tx)}>{tx.counterpart_name}</TableCell>
+            <TableCell onClick={() => onRowClick(tx)} className={isCommission ? "text-xs text-muted-foreground" : ""}>
+              {isCommission ? "" : tx.counterpart_name}
+            </TableCell>
             <TableCell onClick={() => onRowClick(tx)}><StatusBadge status={tx.reconciliation_status} /></TableCell>
             <TableCell onClick={(e) => e.stopPropagation()}>
               <Button
@@ -404,7 +413,8 @@ function TransactionTable({ transactions, onRowClick, selectedIds, onToggleSelec
               </Button>
             </TableCell>
           </TableRow>
-        ))}
+          );
+        })}
         {transactions.length === 0 && (
           <TableRow>
             <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
