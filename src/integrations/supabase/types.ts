@@ -218,6 +218,35 @@ export type Database = {
         }
         Relationships: []
       }
+      company_members: {
+        Row: {
+          company_id: string
+          created_at: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       counterparties: {
         Row: {
           address: string | null
@@ -416,6 +445,7 @@ export type Database = {
       }
       invoice_line_projects: {
         Row: {
+          company_id: string | null
           id: string
           invoice_line_id: string
           notes: string | null
@@ -423,6 +453,7 @@ export type Database = {
           project_id: string
         }
         Insert: {
+          company_id?: string | null
           id?: string
           invoice_line_id: string
           notes?: string | null
@@ -430,6 +461,7 @@ export type Database = {
           project_id: string
         }
         Update: {
+          company_id?: string | null
           id?: string
           invoice_line_id?: string
           notes?: string | null
@@ -455,6 +487,7 @@ export type Database = {
       }
       invoice_lines: {
         Row: {
+          company_id: string | null
           description: string
           id: string
           invoice_id: string
@@ -468,6 +501,7 @@ export type Database = {
           vat_rate: number | null
         }
         Insert: {
+          company_id?: string | null
           description: string
           id?: string
           invoice_id: string
@@ -481,6 +515,7 @@ export type Database = {
           vat_rate?: number | null
         }
         Update: {
+          company_id?: string | null
           description?: string
           id?: string
           invoice_id?: string
@@ -820,7 +855,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      can_access_company_row: { Args: { cid: string }; Returns: boolean }
+      company_role: { Args: { cid: string }; Returns: string }
+      is_company_member: { Args: { cid: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
