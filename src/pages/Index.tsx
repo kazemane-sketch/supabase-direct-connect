@@ -87,16 +87,16 @@ export default function Index() {
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={cashflowData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
               <XAxis dataKey="month" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
               <Tooltip
                 formatter={(value: number) => formatCurrency(value)}
-                contentStyle={{ borderRadius: 8, border: "1px solid hsl(var(--border))" }}
+                contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", background: "#fff" }}
               />
               <Legend />
-              <Bar dataKey="entrate" fill="hsl(var(--chart-income))" name="Entrate" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="uscite" fill="hsl(var(--chart-expense))" name="Uscite" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="entrate" fill="#10B981" fillOpacity={0.85} name="Entrate" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="uscite" fill="#F43F5E" fillOpacity={0.85} name="Uscite" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
