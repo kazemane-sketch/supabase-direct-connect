@@ -9,6 +9,7 @@ import {
   BarChart3,
   ShieldAlert,
   Settings,
+  Landmark,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -30,15 +31,21 @@ export function AppSidebar() {
   const location = useLocation();
 
   return (
-    <aside className="w-60 min-h-screen bg-sidebar flex flex-col border-r border-sidebar-border shrink-0">
-      <div className="px-5 py-6">
-        <h1 className="text-xl font-bold text-sidebar-primary-foreground tracking-tight">
-          <span className="text-primary">Fin</span>Flow
-        </h1>
-        <p className="text-xs text-sidebar-foreground/50 mt-0.5">Gestione finanziaria PMI</p>
+    <aside className="w-[250px] min-h-screen bg-gradient-to-b from-sidebar to-[hsl(220,28%,11%)] flex flex-col shrink-0">
+      {/* Logo */}
+      <div className="px-6 py-7 flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-md">
+          <Landmark className="h-5 w-5 text-primary-foreground" strokeWidth={2.5} />
+        </div>
+        <div>
+          <h1 className="text-lg font-bold text-white tracking-tight leading-none">
+            FinFlow
+          </h1>
+          <p className="text-[10px] text-sidebar-foreground/50 mt-0.5 tracking-wide uppercase">Treasury Management</p>
+        </div>
       </div>
 
-      <nav className="flex-1 px-3 space-y-0.5">
+      <nav className="flex-1 px-3 mt-2 space-y-1">
         {navItems.map((item) => {
           const isActive = location.pathname === item.url ||
             (item.url !== "/" && location.pathname.startsWith(item.url));
@@ -47,22 +54,22 @@ export function AppSidebar() {
               key={item.url}
               to={item.url}
               end={item.url === "/"}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] transition-all duration-150 ${
                 isActive
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium shadow-sm border-l-2 border-white/60"
+                  ? "bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/25"
                   : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               }`}
               activeClassName=""
             >
-              <item.icon className="h-4 w-4 shrink-0" />
+              <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={isActive ? 2.2 : 1.8} />
               <span>{item.title}</span>
             </NavLink>
           );
         })}
       </nav>
 
-      <div className="px-5 py-4 border-t border-sidebar-border">
-        <p className="text-xs text-sidebar-foreground/40">FinFlow v1.0</p>
+      <div className="px-6 py-5 border-t border-white/5">
+        <p className="text-[11px] text-sidebar-foreground/30 font-medium">FinFlow v1.0</p>
       </div>
     </aside>
   );

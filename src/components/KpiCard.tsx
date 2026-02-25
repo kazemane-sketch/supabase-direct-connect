@@ -9,32 +9,27 @@ interface KpiCardProps {
   variant?: "default" | "success" | "warning" | "destructive";
 }
 
-const variantBorder = {
-  default: "border-l-primary",
-  success: "border-l-success",
-  warning: "border-l-warning",
-  destructive: "border-l-destructive",
-};
-
-const variantIconBg = {
-  default: "bg-primary/10 text-primary",
-  success: "bg-success/10 text-success",
-  warning: "bg-warning/10 text-warning",
-  destructive: "bg-destructive/10 text-destructive",
+const variantIcon = {
+  default: "bg-primary/15 text-primary",
+  success: "bg-success/15 text-success",
+  warning: "bg-warning/15 text-warning",
+  destructive: "bg-destructive/15 text-destructive",
 };
 
 export function KpiCard({ title, value, icon: Icon, trend, variant = "default" }: KpiCardProps) {
   return (
-    <Card className={`border-l-4 ${variantBorder[variant]} shadow-sm hover:shadow-md transition-shadow duration-200`}>
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1.5">
-            <p className="text-sm text-muted-foreground font-medium">{title}</p>
-            <p className="text-3xl font-bold tracking-tight">{value}</p>
-            {trend && <p className="text-xs text-muted-foreground">{trend}</p>}
+    <Card className="group hover:scale-[1.02] hover:shadow-lg transition-all duration-200 border-0 shadow-sm">
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-2 min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
+            <p className="text-3xl font-extrabold tracking-tight leading-none">{value}</p>
+            {trend && (
+              <p className="text-sm font-medium text-muted-foreground">{trend}</p>
+            )}
           </div>
-          <div className={`p-3 rounded-full ${variantIconBg[variant]}`}>
-            <Icon className="h-5 w-5" />
+          <div className={`p-3.5 rounded-2xl ${variantIcon[variant]} shrink-0`}>
+            <Icon className="h-6 w-6" strokeWidth={2} />
           </div>
         </div>
       </CardContent>
