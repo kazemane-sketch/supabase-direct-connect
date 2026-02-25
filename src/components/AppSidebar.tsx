@@ -7,6 +7,7 @@ import {
   GitMerge,
   TrendingUp,
   BarChart3,
+  ShieldAlert,
   Settings,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -21,6 +22,7 @@ const navItems = [
   { title: "Riconciliazione", url: "/riconciliazione", icon: GitMerge },
   { title: "Cashflow", url: "/cashflow", icon: TrendingUp },
   { title: "Analisi", url: "/analisi", icon: BarChart3 },
+  { title: "Quarantena", url: "/quarantena", icon: ShieldAlert },
   { title: "Impostazioni", url: "/impostazioni", icon: Settings },
 ];
 

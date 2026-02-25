@@ -1,1 +1,10 @@
 project_id = "eckfvknzfqpfuleqwewg"
+
+[functions.parse-invoice-ai]
+verify_jwt = false
+
+[functions.parse-bank-pdf]
+verify_jwt = false
+
+[functions.vies-lookup]
+verify_jwt = false

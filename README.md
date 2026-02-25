@@ -1,9 +1,22 @@
-# Welcome to your Lovable project
+# FinFlow — Gestione Finanziaria PMI
+
+## Setup
+
+### 1. Supabase Secrets (obbligatorio per AI)
+
+Le Edge Functions `parse-invoice-ai` e `parse-bank-pdf` richiedono una API key Anthropic.
+
+1. Vai su **Supabase Dashboard → Settings → Edge Functions → Secrets**
+2. Aggiungi il secret: `ANTHROPIC_API_KEY` con il valore della tua API key Anthropic
+3. La key NON deve mai essere inserita nel frontend
+
+Senza questo secret, l'import AI e il parsing PDF non funzioneranno.
+
+### 2. Nessuna dipendenza Lovable Cloud
+
+L'app usa esclusivamente il progetto Supabase esterno. Tutte le Edge Functions sono nel repo sotto `supabase/functions/`.
 
 ## Project info
-
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
-
 ## How can I edit this code?
 
 There are several ways of editing your application.

@@ -279,12 +279,21 @@ export function ImportXmlModal({ open, onOpenChange }: ImportXmlModalProps) {
     if (e.dataTransfer.files.length > 0) processFiles(e.dataTransfer.files);
   }, [processFiles]);
 
-  const getDirection = (inv: ParsedInvoice): "active" | "passive" => {
-    const companyVat = selectedCompany?.vat_number;
-    if (!companyVat) return "passive";
-    if (inv.buyer.vatNumber && companyVat.includes(inv.buyer.vatNumber)) return "passive";
-    if (inv.supplier.vatNumber && companyVat.includes(inv.supplier.vatNumber)) return "active";
-    return "passive";
+  /** Normalizza VAT: rimuovi prefisso IT, spazi, caratteri non alfanumerici */
+  const normalizeVat = (vat: string | null | undefined): string => {
+    if (!vat) return "";
+    return vat.replace(/^IT/i, "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  };
+
+  const getDirection = (inv: ParsedInvoice): "active" | "passive" | "quarantine" => {
+    const normCompany = normalizeVat(selectedCompany?.vat_number);
+    if (!normCompany) return "passive";
+    const normBuyer = normalizeVat(inv.buyer.vatNumber);
+    const normSupplier = normalizeVat(inv.supplier.vatNumber);
+    // Confronto esatto (no includes)
+    if (normBuyer && normBuyer === normCompany) return "passive";
+    if (normSupplier && normSupplier === normCompany) return "active";
+    return "quarantine";
   };
 
   // ─── IMPORT MUTATION ──────────────────────────────────────────────────────────
@@ -349,6 +358,30 @@ export function ImportXmlModal({ open, onOpenChange }: ImportXmlModalProps) {
 
         // Da qui in poi abbiamo una fattura valida
         const direction = getDirection(inv);
+
+        // TASK D: se direzione sconosciuta → quarantena con DIRECTION_UNKNOWN
+        if (direction === "quarantine") {
+          const qi: QuarantineItem = {
+            filename: item.filename,
+            errorCode: "DIRECTION_UNKNOWN",
+            errorMessage: `Impossibile determinare direzione: supplier VAT=${inv.supplier.vatNumber}, buyer VAT=${inv.buyer.vatNumber}, company VAT=${selectedCompany?.vat_number}`,
+            storagePath,
+            hadReplacement: item.hadReplacement || false,
+            invoice: inv,
+          };
+          res.quarantined.push(qi);
+          await supabase.from("invoice_import_files").insert({
+            batch_id: batchId, company_id: companyId, filename: item.filename,
+            source_type: item.filename.toLowerCase().endsWith('.p7m') ? 'p7m' : 'xml',
+            storage_path: storagePath, status: 'quarantined',
+            error_code: qi.errorCode, error_message: qi.errorMessage,
+            had_replacement_chars: qi.hadReplacement,
+          } as any);
+          done++;
+          setProgress(Math.round((done / total) * 100));
+          continue;
+        }
+
         const cpVat = direction === "passive" ? inv.supplier.vatNumber : inv.buyer.vatNumber;
         const cpName = direction === "passive" ? inv.supplier.name : inv.buyer.name;
 
@@ -510,6 +543,10 @@ export function ImportXmlModal({ open, onOpenChange }: ImportXmlModalProps) {
     if (!companyId || !q.invoice) return;
     const inv = q.invoice;
     const direction = getDirection(inv);
+    if (direction === "quarantine") {
+      toast.error("Impossibile determinare la direzione della fattura (DIRECTION_UNKNOWN)");
+      return;
+    }
     const cpVat = direction === "passive" ? inv.supplier.vatNumber : inv.buyer.vatNumber;
     const cpName = direction === "passive" ? inv.supplier.name : inv.buyer.name;
     try {
@@ -521,7 +558,9 @@ export function ImportXmlModal({ open, onOpenChange }: ImportXmlModalProps) {
         counterpart_name: stripBadUnicode(cpName || cpVat || "Sconosciuto"),
         counterpart_vat: cpVat || null,
         payment_status: "unpaid", reconciliation_status: "unmatched",
-        source: "xml_sdi", raw_xml: null, original_filename: q.filename,
+        source: "xml_sdi", raw_xml: null,
+        payment_method: inv.primaryPayment?.method || null,
+        original_filename: q.filename,
       }).select("id").single();
       if (error) { toast.error(`Re-import fallito: ${error.message}`); return; }
       // Update import log
@@ -606,7 +645,7 @@ export function ImportXmlModal({ open, onOpenChange }: ImportXmlModalProps) {
                     </p>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    Verifica: {allPreviews.length} + {failedFiles.length}{aiPending > 0 ? ` + ${aiPending} AI` : ''} = {allPreviews.length + failedFiles.length + aiPending} / {totalFilesCount} totali
+                    Conteggio: {allPreviews.length} riconosciuti + {failedFiles.length} falliti{aiPending > 0 ? ` + ${aiPending} AI in corso` : ''} = {allPreviews.length + failedFiles.length + aiPending} / {totalFilesCount} totali
                   </p>
                   {aiPending > 0 && (
                     <p className="text-xs text-amber-600 font-medium flex items-center gap-1">
@@ -651,6 +690,7 @@ export function ImportXmlModal({ open, onOpenChange }: ImportXmlModalProps) {
                     <TableHead>Data</TableHead>
                     <TableHead>Controparte</TableHead>
                     <TableHead className="text-right">Importo</TableHead>
+                    <TableHead>Pagamento</TableHead>
                     <TableHead>Righe</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
@@ -663,11 +703,11 @@ export function ImportXmlModal({ open, onOpenChange }: ImportXmlModalProps) {
                       <TableRow key={idx}>
                         <TableCell>
                           <div className="flex items-center gap-1">
-                            <Badge variant={direction === "active" ? "default" : "secondary"}>
-                              {direction === "active" ? "Attiva" : "Passiva"}
+                            <Badge variant={direction === "active" ? "default" : direction === "quarantine" ? "destructive" : "secondary"}>
+                              {direction === "active" ? "Attiva" : direction === "quarantine" ? "Dir.?" : "Passiva"}
                             </Badge>
                             {item.parsedByAI && (
-                              <Badge variant="outline" className="text-xs gap-0.5 border-amber-400 text-amber-600">
+                              <Badge variant="outline" className="text-xs gap-0.5">
                                 <Sparkles className="h-3 w-3" />AI
                               </Badge>
                             )}
@@ -679,6 +719,13 @@ export function ImportXmlModal({ open, onOpenChange }: ImportXmlModalProps) {
                           {direction === "passive" ? inv.supplier.name : inv.buyer.name}
                         </TableCell>
                         <TableCell className="text-right font-semibold">{formatCurrency(inv.totalAmount)}</TableCell>
+                        <TableCell>
+                          {inv.primaryPayment?.method ? (
+                            <Badge variant="outline" className="text-[10px]">{inv.primaryPayment.method}</Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">assente in XML</span>
+                          )}
+                        </TableCell>
                         <TableCell>{inv.lines.length}</TableCell>
                         <TableCell>
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeItem(idx)}>
@@ -708,19 +755,10 @@ export function ImportXmlModal({ open, onOpenChange }: ImportXmlModalProps) {
           <div className="space-y-4">
             <h3 className="font-semibold text-lg">Importazione completata</h3>
 
-            {/* Bilancio totale */}
+            {/* Bilancio totale — TASK E: conteggio coerente */}
             <div className="text-sm font-medium p-3 rounded bg-muted">
-              Importate: {result.imported} / Totali: {result.totalFiles}
-              {result.quarantined.length > 0 && (
-                <span className="text-destructive ml-2">
-                  — In quarantena: {result.quarantined.length}
-                </span>
-              )}
-              {result.duplicates > 0 && (
-                <span className="text-muted-foreground ml-2">
-                  — Duplicate: {result.duplicates}
-                </span>
-              )}
+              Totale: {result.imported + result.duplicates + result.quarantined.length} / {result.totalFiles} file processati
+              {" "}({result.imported} importate, {result.duplicates} duplicate, {result.quarantined.length} quarantena)
             </div>
 
             <Card>
