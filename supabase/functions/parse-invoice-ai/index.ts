@@ -28,8 +28,10 @@ serve(async (req) => {
       );
     }
 
-    // Tronca a 12000 caratteri per stare nei limiti
-    const truncatedXml = rawXml.substring(0, 12000);
+    console.log("rawXml length:", rawXml.length);
+    console.log("has DatiPagamento:", /<DatiPagamento>/.test(rawXml));
+    // Tronca a 100k caratteri solo se necessario
+    const truncatedXml = rawXml.length > 100000 ? rawXml.substring(0, 100000) : rawXml;
 
     const prompt = `Sei un parser di fatture elettroniche italiane SDI.
 Estrai TUTTI i dati dal seguente XML (potrebbe essere parzialmente corrotto).
@@ -102,7 +104,7 @@ Formato JSON richiesto (includi tutti i campi presenti, null se assenti):
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 2000,
+        max_tokens: 4000,
         messages: [{ role: "user", content: prompt }],
       }),
     });
