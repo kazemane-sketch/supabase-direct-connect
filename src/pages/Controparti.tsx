@@ -526,13 +526,36 @@ export default function Controparti() {
           <SheetHeader>
             <SheetTitle>{editId ? "Modifica controparte" : "Nuova controparte"}</SheetTitle>
           </SheetHeader>
-          <div className="grid grid-cols-2 gap-4 mt-6">
+          <div className="space-y-4 mt-6">
+            {/* Entity type selector */}
+            <div>
+              <Label className="mb-2 block">Tipologia anagrafica</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {ENTITY_TYPES.map((et) => {
+                  const Icon = et.icon;
+                  return (
+                    <button
+                      key={et.value}
+                      type="button"
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all hover:border-primary/50 hover:bg-accent ${
+                        selectedEntityType === et.value ? "border-primary bg-accent" : "border-border"
+                      }`}
+                      onClick={() => setSelectedEntityType(et.value)}
+                    >
+                      <Icon className="h-5 w-5 text-foreground" />
+                      <span className="text-xs font-medium">{et.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <Label>Denominazione *</Label>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </div>
             <div>
-              <Label>Tipo</Label>
+              <Label>Ruolo</Label>
               <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -601,6 +624,7 @@ export default function Controparti() {
             <div className="col-span-2">
               <Label>Note</Label>
               <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            </div>
             </div>
           </div>
           <SheetFooter className="mt-6">
