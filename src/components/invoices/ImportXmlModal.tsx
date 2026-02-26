@@ -333,10 +333,20 @@ export function ImportXmlModal({ open, onOpenChange }: ImportXmlModalProps) {
 
         // Se non ha invoice parsata → quarantena
         if (!inv) {
+          const isP7m = item.filename.toLowerCase().endsWith('.p7m');
+          let errorMessage = "Impossibile estrarre XML dal file";
+          let errorCode = "PARSE_FAILED";
+          if (item.rawXml) {
+            errorMessage = "XML estratto ma parsing struttura fallito";
+            errorCode = "XML_STRUCTURE_INVALID";
+          } else if (isP7m) {
+            errorMessage = "Estrazione XML da firma digitale PKCS#7 fallita";
+            errorCode = "P7M_EXTRACTION_FAILED";
+          }
           const qi: QuarantineItem = {
             filename: item.filename,
-            errorCode: "PARSE_FAILED",
-            errorMessage: item.rawXml ? "XML estratto ma parsing fallito (anche AI)" : "Impossibile estrarre XML dal file",
+            errorCode,
+            errorMessage,
             storagePath,
             hadReplacement: item.hadReplacement || false,
           };
