@@ -320,7 +320,9 @@ function InvoiceLineRow({
                   <div className="text-right">
                     <span className="font-semibold">{formatCurrency(Number(line.total))}</span>
                     <p className="text-[10px] text-muted-foreground">
-                      {formatCurrency(Number(line.total) - Number(line.total) * Number(line.vat_rate || 0) / (100 + Number(line.vat_rate || 0)))} + IVA {line.vat_rate}%
+                      {Number(line.vat_rate) > 0
+                        ? `${formatCurrency(Number(line.total) * Number(line.vat_rate) / 100)} IVA ${line.vat_rate}%`
+                        : "esente IVA"}
                     </p>
                   </div>
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
