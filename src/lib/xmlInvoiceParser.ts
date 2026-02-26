@@ -343,6 +343,52 @@ export function stripBadUnicode(s: string): string {
   return s.replace(/\u0000/g, '').replace(/[\uD800-\uDFFF]/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
 }
 
+/**
+ * Pulisce la descrizione di una riga fattura estraendo il nome prodotto.
+ * Formato tipico: "indirizzo; provenienza; PART.; SFUSO; POZZOLANA PL NS CAVE"
+ * → Prodotto: "POZZOLANA PL NS CAVE", Dettaglio: "da Guidonia, sfuso"
+ */
+function cleanLineDescription(raw: string): string {
+  if (!raw) return raw;
+  // Se non contiene ";" probabilmente è già pulito
+  if (!raw.includes(';')) return raw.trim();
+  
+  const segments = raw.split(';').map(s => s.trim()).filter(Boolean);
+  if (segments.length <= 1) return raw.trim();
+  
+  // Filtra segmenti che sono chiaramente logistica/indirizzi/metadata
+  const logisticsPatterns = [
+    /^\d{5}\b/,                    // CAP (00010...)
+    /\bvia\b/i,                    // Via ...
+    /\bpiazza\b/i,                 // Piazza ...
+    /\bviale\b/i,                  // Viale ...
+    /\bcorso\b/i,                  // Corso ...
+    /\b\d+,\s*\d{5}\b/,           // civico, CAP
+    /\bItalia\b/i,                 // Italia
+    /^da\s+/i,                     // "da Guidonia"
+    /^PART\.?$/i,                  // PART.
+    /^SFUSO$/i,                    // SFUSO
+    /^PALLETTIZZATO$/i,            // PALLETTIZZATO
+    /^INSACCATO$/i,                // INSACCATO
+    /^CISTERNA$/i,                 // CISTERNA
+    /^\w{2},\s*Italia$/i,          // "RM, Italia"
+    /^[A-Z]{2}$/,                  // Province code (RM, MI...)
+  ];
+  
+  // Prendi l'ultimo segmento che NON è logistics come nome prodotto
+  const productSegments = segments.filter(seg => 
+    !logisticsPatterns.some(pat => pat.test(seg))
+  );
+  
+  if (productSegments.length > 0) {
+    // Il prodotto è tipicamente l'ultimo segmento non-logistica
+    return productSegments[productSegments.length - 1];
+  }
+  
+  // Fallback: ultimo segmento
+  return segments[segments.length - 1];
+}
+
 /** Estrae il testo del primo tag trovato (con sanitizzazione) */
 function getTagText(xml: string, tag: string): string {
   const regex = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`);
@@ -532,7 +578,7 @@ function parseXmlString(xmlString: string): ParsedInvoice | null {
       
       lines.push({
         lineNumber: lineNum,
-        description: desc,
+        description: cleanLineDescription(desc),
         quantity: qty,
         unitPrice,
         totalPrice,
