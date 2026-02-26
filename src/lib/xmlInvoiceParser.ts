@@ -114,22 +114,25 @@ export function extractXmlFromP7mBytes(bytes: Uint8Array): string | null {
         workingBytes[i] = binaryStr.charCodeAt(i);
       }
     } catch {
-      // Non è base64 valido, continua con i byte originali
       workingBytes = bytes;
     }
   }
 
   // Cerca l'inizio dell'XML nel binario
-  // Proviamo: <?xml  oppure direttamente <FatturaElettronica o varianti con namespace
+  // Metodo 1: markers noti (veloci)
   const markers: number[][] = [
     [0x3C, 0x3F, 0x78, 0x6D, 0x6C],                           // <?xml
     [0x3C, 0x46, 0x61, 0x74, 0x74, 0x75, 0x72, 0x61],         // <Fattura
     [0x3C, 0x70, 0x3A, 0x46, 0x61, 0x74, 0x74, 0x75, 0x72, 0x61], // <p:Fattura
     [0x3C, 0x62, 0x3A, 0x46, 0x61, 0x74, 0x74, 0x75, 0x72, 0x61], // <b:Fattura
     [0x3C, 0x6E, 0x73, 0x30, 0x3A, 0x46],                      // <ns0:F
+    [0x3C, 0x6E, 0x73, 0x31, 0x3A, 0x46],                      // <ns1:F
     [0x3C, 0x6E, 0x73, 0x32, 0x3A, 0x46],                      // <ns2:F
+    [0x3C, 0x6E, 0x73, 0x33, 0x3A, 0x46],                      // <ns3:F
     [0x3C, 0x6E, 0x31, 0x3A, 0x46],                            // <n1:F
     [0x3C, 0x4E, 0x53, 0x31, 0x3A, 0x46],                      // <NS1:F
+    [0x3C, 0x71, 0x31, 0x3A, 0x46],                            // <q1:F
+    [0x3C, 0x71, 0x32, 0x3A, 0x46],                            // <q2:F
   ];
 
   let startIndex = -1;
@@ -147,55 +150,92 @@ export function extractXmlFromP7mBytes(bytes: Uint8Array): string | null {
     if (startIndex !== -1) break;
   }
 
+  // Metodo 2 (fallback): cerca qualsiasi pattern <XX:FatturaElettronica o <FatturaElettronica
+  // Scansiona byte per byte cercando "<" seguito da "FatturaElettronica" o "XX:FatturaElettronica"
+  if (startIndex === -1) {
+    const fattura = [0x46, 0x61, 0x74, 0x74, 0x75, 0x72, 0x61, 0x45, 0x6C, 0x65, 0x74, 0x74, 0x72, 0x6F, 0x6E, 0x69, 0x63, 0x61]; // FatturaElettronica
+    for (let i = 0; i < workingBytes.length - 30; i++) {
+      if (workingBytes[i] !== 0x3C) continue; // <
+      // Check direct <FatturaElettronica
+      let directMatch = true;
+      for (let j = 0; j < fattura.length && (i + 1 + j) < workingBytes.length; j++) {
+        if (workingBytes[i + 1 + j] !== fattura[j]) { directMatch = false; break; }
+      }
+      if (directMatch) { startIndex = i; break; }
+      // Check <prefix:FatturaElettronica (prefix = 1-10 chars + colon)
+      let colonPos = -1;
+      for (let k = 1; k <= 11 && (i + k) < workingBytes.length; k++) {
+        if (workingBytes[i + k] === 0x3A) { colonPos = i + k; break; } // ":"
+        // Must be alphanumeric
+        const b = workingBytes[i + k];
+        if (!((b >= 0x41 && b <= 0x5A) || (b >= 0x61 && b <= 0x7A) || (b >= 0x30 && b <= 0x39) || b === 0x5F)) break;
+      }
+      if (colonPos !== -1 && (colonPos + 1 + fattura.length) < workingBytes.length) {
+        let prefMatch = true;
+        for (let j = 0; j < fattura.length; j++) {
+          if (workingBytes[colonPos + 1 + j] !== fattura[j]) { prefMatch = false; break; }
+        }
+        if (prefMatch) { startIndex = i; break; }
+      }
+    }
+  }
+
+  // Metodo 3 (ultimo fallback): cerca <?xml nel binario
+  if (startIndex === -1) {
+    const xmlDecl = [0x3C, 0x3F, 0x78, 0x6D, 0x6C];
+    for (let i = 0; i < workingBytes.length - xmlDecl.length; i++) {
+      let match = true;
+      for (let j = 0; j < xmlDecl.length; j++) {
+        if (workingBytes[i + j] !== xmlDecl[j]) { match = false; break; }
+      }
+      if (match) { startIndex = i; break; }
+    }
+  }
+
   if (startIndex === -1) return null;
 
-  // Rimuove TUTTI i byte di controllo dal binario PRIMA della decodifica.
-  // Alcuni P7M hanno byte spuri (0x00, 0x03, 0x04 ecc.) intercalati
-  // nei nomi dei tag XML, es: <Fattu\x04\x03raElettronicaBody>
-  // Manteniamo solo: tab(0x09), newline(0x0A), CR(0x0D), e tutti >= 0x20
+  // Rimuove byte di controllo dal binario PRIMA della decodifica
   const sliceRaw = workingBytes.slice(startIndex);
   const sliceClean = sliceRaw.filter(
     (b) => b >= 0x20 || b === 0x09 || b === 0x0A || b === 0x0D
   );
-  // fatal:false scarta sequenze UTF-8 invalide rimaste (byte di continuazione isolati)
-  const rawText = new TextDecoder('utf-8', { fatal: false })
-    .decode(sliceClean);
+  const rawText = new TextDecoder('utf-8', { fatal: false }).decode(sliceClean);
 
-  // Trova il tag di chiusura usando indexOf (veloce, no regex backtracking)
-  // Copre TUTTI i namespace usati nelle fatture SDI italiane reali
-  const closingVariants = [
-    '</FatturaElettronica>',
-    '</p:FatturaElettronica>',
-    '</b:FatturaElettronica>',
-    '</ns0:FatturaElettronica>',
-    '</ns1:FatturaElettronica>',
-    '</ns2:FatturaElettronica>',
-    '</ns3:FatturaElettronica>',
-    '</ns4:FatturaElettronica>',
-    '</ns5:FatturaElettronica>',
-    '</n1:FatturaElettronica>',
-    '</NS1:FatturaElettronica>',
-    '</NS2:FatturaElettronica>',
-  ];
-
-  for (const tag of closingVariants) {
-    const pos = rawText.indexOf(tag);
-    if (pos !== -1) {
-      return rawText.substring(0, pos + tag.length);
-    }
+  // Trova il tag di chiusura usando regex per coprire QUALSIASI namespace prefix
+  const closingRegex = /<\/([A-Za-z0-9_]*:)?FatturaElettronica>/;
+  const closingMatch = closingRegex.exec(rawText);
+  
+  if (closingMatch) {
+    const extracted = rawText.substring(0, closingMatch.index + closingMatch[0].length);
+    return stripAllegatiContent(extracted);
   }
 
-  // Fallback: il tag di chiusura è corrotto dalla firma digitale
-  // Troviamo la fine di FatturaElettronicaBody e ricostruiamo
-  const bodyCloseIdx = rawText.lastIndexOf('</FatturaElettronicaBody>');
-  if (bodyCloseIdx !== -1) {
+  // Fallback: tag di chiusura corrotto dalla firma digitale
+  // Cerca la fine di FatturaElettronicaBody (con qualsiasi namespace)
+  const bodyCloseRegex = /<\/([A-Za-z0-9_]*:)?FatturaElettronicaBody>/;
+  const bodyCloseMatch = bodyCloseRegex.exec(rawText);
+  if (bodyCloseMatch) {
     const openingMatch = rawText.match(/<([A-Za-z0-9_]*:?)FatturaElettronica[^>]*>/);
     const prefix = openingMatch ? openingMatch[1] : '';
-    const xmlContent = rawText.substring(0, bodyCloseIdx + '</FatturaElettronicaBody>'.length);
-    return xmlContent + `</${prefix}FatturaElettronica>`;
+    const xmlContent = rawText.substring(0, bodyCloseMatch.index + bodyCloseMatch[0].length);
+    return stripAllegatiContent(xmlContent + `</${prefix}FatturaElettronica>`);
   }
 
   return null;
+}
+
+/**
+ * Rimuove il contenuto base64 degli allegati dall'XML per evitare
+ * problemi di memoria e dimensione nelle query DB/AI.
+ * Mantiene i metadati (NomeAttachment, DescrizioneAttachment, ecc.).
+ */
+function stripAllegatiContent(xml: string): string {
+  // Sostituisce il contenuto di <Attachment>...base64...</Attachment> con stringa vuota
+  // mantenendo il tag per non rompere la struttura XML
+  return xml.replace(
+    /(<(?:[A-Za-z0-9_]*:)?Attachment>)[^<]*(<\/(?:[A-Za-z0-9_]*:)?Attachment>)/g,
+    '$1[BASE64_REMOVED]$2'
+  );
 }
 
 // ─── NORMALIZZAZIONE NAMESPACE ────────────────────────────────────────────────
